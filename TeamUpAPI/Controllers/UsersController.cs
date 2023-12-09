@@ -142,6 +142,85 @@ namespace TeamUpAPI.Controllers
             }
         }
 
+        [HttpPost]
+        [Route("UpdateSettings")]
+        public async Task<IActionResult> UpdateUserSettings([FromBody] UserSettingsRequest request)
+        {
+            try
+            {
+                var foundUserSetting = await DB.Settings.FindAsync(request.UserId);
+
+                if (foundUserSetting == null)
+                {
+                    Logger.LogWarning($"Hmmm... It seems as if user: {request.UserId} is missing settings.");
+                    return NotFound($"Could not find settings for user: {request.UserId}");
+                }
+
+                // Update the settings
+                foundUserSetting.Language = request.Language;
+                foundUserSetting.TimeZone = request.TimeZone;
+                foundUserSetting.ThemePreference = request.ThemePreference;
+                foundUserSetting.EnableTwoFactorAuthentication = request.EnableTwoFactorAuthentication;
+                foundUserSetting.AllowEmailNotification = request.AllowEmailNotification;
+                foundUserSetting.ProfilePrivacy = request.ProfilePrivacy;
+                foundUserSetting.DisplayName = request.DisplayName;
+                foundUserSetting.Bio = request.Bio;
+                foundUserSetting.SocialMediaLinks = request.SocialMediaLinks;
+
+                await DB.SaveChangesAsync();
+
+                Logger.LogInformation($"Settings updated successfully for user: {request.UserId}");
+
+                return Ok("Settings updated successfully");
+
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"An error occurred while updating the settings for user: {request.UserId} ###{ex.Message}###");
+                return StatusCode(500, "Internal Server Error");
+            }
+        }
+
+        [HttpPost]
+        [Route("UpdateProfilePicture")]
+        public async Task<IActionResult> UpdateProfilePicture([FromBody] UpdateProfilePictureRequest request)
+        {
+            try
+            {
+                // Validate the request
+                if (request == null || request.ProfilePicture == null || request.ProfilePicture.Length == 0)
+                {
+                    Logger.LogWarning($"Invalid request for updating user: {request.UserId}'s profile picture");
+                    return BadRequest($"Invalid request for updating user: {request.UserId}'s profile picture");
+                }
+
+                var user = await DB.Users.FindAsync(request.UserId);
+
+                if (user == null)
+                {
+                    Logger.LogWarning($"Could not find user with ID: {request.UserId}");
+                    return NotFound($"Could not find user with ID: {request.UserId}");
+                }
+
+                using (var stream = new MemoryStream())
+                {
+                    await request.ProfilePicture.CopyToAsync(stream);
+                    user.SetProfileImage(stream.ToArray());
+                }
+
+                await DB.SaveChangesAsync();
+
+                Logger.LogInformation($"Profile picture updated successfully for user: {request.UserId}");
+
+                return Ok("Profile picture updated successfully");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"An error occurred while updating the profile image for user: {request.UserId}. Error: {ex.Message}");
+                return StatusCode(500, "Internal Server Error");
+            }
+        }
+
         private bool CheckUsernameAvailability(string username)
         {
             if (DB.Users.Any(u => u.DisplayName == username))
